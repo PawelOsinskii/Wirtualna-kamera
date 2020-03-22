@@ -8,19 +8,21 @@ namespace ConsoleApp1
     {
         private static int width = 1280, height = 720;
         private static ShaderProgram program;
-        private static VBO<Vector3> pyramid, cube;
-        private static VBO<Vector3> pyramidColor, cubeColor;
-        private static VBO<uint> pyramidTriangles, cubeQuads;
+        private static VBO<Vector3>  cube;
+        private static VBO<Vector2>  cubeUV;
+        private static VBO<uint>  cubeQuads;
         private static System.Diagnostics.Stopwatch watch;
         private static float angle;
+        private static Texture texture;
 
+        [Obsolete]
         static void Main(string[] args)
         {
             // create an OpenGL window
             Glut.glutInit();
             Glut.glutInitDisplayMode(Glut.GLUT_DOUBLE | Glut.GLUT_DEPTH);
             Glut.glutInitWindowSize(width, height);
-            Glut.glutCreateWindow("OpenGL Tutorial");
+            Glut.glutCreateWindow("Wirtualna Kamera");
 
             // provide the Glut callbacks that are necessary for running this tutorial
             Glut.glutIdleFunc(OnRenderFrame);
@@ -38,18 +40,9 @@ namespace ConsoleApp1
             program["projection_matrix"].SetValue(Matrix4.CreatePerspectiveFieldOfView(0.45f, (float)width / height, 0.1f, 1000f));
             program["view_matrix"].SetValue(Matrix4.LookAt(new Vector3(0, 0, 10), Vector3.Zero, new Vector3(0, 1, 0)));
 
-            // create a pyramid with vertices and colors
-            pyramid = new VBO<Vector3>(new Vector3[] {
-                new Vector3(0, 1, 0), new Vector3(-1, -1, 1), new Vector3(1, -1, 1),        // front face
-                new Vector3(0, 1, 0), new Vector3(1, -1, 1), new Vector3(1, -1, -1),        // right face
-                new Vector3(0, 1, 0), new Vector3(1, -1, -1), new Vector3(-1, -1, -1),      // back face
-                new Vector3(0, 1, 0), new Vector3(-1, -1, -1), new Vector3(-1, -1, 1) });   // left face
-            pyramidColor = new VBO<Vector3>(new Vector3[] {
-                new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1),
-                new Vector3(1, 0, 0), new Vector3(0, 0, 1), new Vector3(0, 1, 0),
-                new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1),
-                new Vector3(1, 0, 0), new Vector3(0, 0, 1), new Vector3(0, 1, 0) });
-            pyramidTriangles = new VBO<uint>(new uint[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }, BufferTarget.ElementArrayBuffer);
+            //load our texture
+
+            texture = new Texture("texture.jpg");
 
             // create a cube with vertices and colors
             cube = new VBO<Vector3>(new Vector3[] {
@@ -59,13 +52,17 @@ namespace ConsoleApp1
                 new Vector3(1, -1, -1), new Vector3(-1, -1, -1), new Vector3(-1, 1, -1), new Vector3(1, 1, -1),
                 new Vector3(-1, 1, 1), new Vector3(-1, 1, -1), new Vector3(-1, -1, -1), new Vector3(-1, -1, 1),
                 new Vector3(1, 1, -1), new Vector3(1, 1, 1), new Vector3(1, -1, 1), new Vector3(1, -1, -1) });
-            cubeColor = new VBO<Vector3>(new Vector3[] {
-                new Vector3(0, 1, 0), new Vector3(0, 1, 0), new Vector3(0, 1, 0), new Vector3(0, 1, 0),
-                new Vector3(1, 0.5f, 0), new Vector3(1, 0.5f, 0), new Vector3(1, 0.5f, 0), new Vector3(1, 0.5f, 0),
-                new Vector3(1, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 0, 0),
-                new Vector3(1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, 1, 0), new Vector3(1, 1, 0),
-                new Vector3(0, 0, 1), new Vector3(0, 0, 1), new Vector3(0, 0, 1), new Vector3(0, 0, 1),
-                new Vector3(1, 0, 1), new Vector3(1, 0, 1), new Vector3(1, 0, 1), new Vector3(1, 0, 1) });
+            cubeUV = new VBO<Vector2>(new Vector2[]
+            {
+                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
+                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
+                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
+                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
+                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1),
+                new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1)
+
+            });
+
             cubeQuads = new VBO<uint>(new uint[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 }, BufferTarget.ElementArrayBuffer);
 
             watch = System.Diagnostics.Stopwatch.StartNew();
@@ -76,11 +73,10 @@ namespace ConsoleApp1
         private static void OnClose()
         {
             // dispose of all of the resources that were created
-            pyramid.Dispose();
-            pyramidColor.Dispose();
-            pyramidTriangles.Dispose();
+           
             cube.Dispose();
-            cubeColor.Dispose();
+            cubeUV.Dispose();
+            texture.Dispose();
             cubeQuads.Dispose();
             program.DisposeChildren = true;
             program.Dispose();
@@ -91,8 +87,11 @@ namespace ConsoleApp1
 
         }
 
+        [Obsolete]
         private static void OnRenderFrame()
         {
+
+            
             // calculate how much time has elapsed since the last frame
             watch.Stop();
             float deltaTime = (float)watch.ElapsedTicks / System.Diagnostics.Stopwatch.Frequency;
@@ -107,21 +106,17 @@ namespace ConsoleApp1
 
             // use our shader program
             Gl.UseProgram(program);
+            Gl.BindTexture(texture);
 
-            // bind the vertex positions, colors and elements of the pyramid
-            program["model_matrix"].SetValue(Matrix4.CreateRotationY(angle) * Matrix4.CreateTranslation(new Vector3(-1.5f, 0, 0)));
-            Gl.BindBufferToShaderAttribute(pyramid, program, "vertexPosition");
-            Gl.BindBufferToShaderAttribute(pyramidColor, program, "vertexColor");
-            Gl.BindBuffer(pyramidTriangles);
 
-            // draw the pyramid
-            Gl.DrawElements(BeginMode.Triangles, pyramidTriangles.Count, DrawElementsType.UnsignedInt, IntPtr.Zero);
+
 
             // bind the vertex positions, colors and elements of the cube
-            program["model_matrix"].SetValue(Matrix4.CreateRotationY(angle / 2) * Matrix4.CreateRotationX(angle) * Matrix4.CreateTranslation(new Vector3(1.5f, 0, 0)));
+            program["model_matrix"].SetValue(Matrix4.CreateRotationY(angle / 2) * Matrix4.CreateRotationX(angle));// * Matrix4.CreateTranslation(new Vector3(1.5f, 0, -10)));
             Gl.BindBufferToShaderAttribute(cube, program, "vertexPosition");
-            Gl.BindBufferToShaderAttribute(cubeColor, program, "vertexColor");
+            Gl.BindBufferToShaderAttribute(cubeUV, program, "vertexUV");
             Gl.BindBuffer(cubeQuads);
+            
 
             // draw the cube
             Gl.DrawElements(BeginMode.Quads, cubeQuads.Count, DrawElementsType.UnsignedInt, IntPtr.Zero);
@@ -132,25 +127,28 @@ namespace ConsoleApp1
         public static string VertexShader = @"
 #version 130
 in vec3 vertexPosition;
-in vec3 vertexColor;
-out vec3 color;
+in vec2 vertexUV;
+out vec2 uv;
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
 uniform mat4 model_matrix;
 void main(void)
 {
-    color = vertexColor;
+    uv = vertexUV;
     gl_Position = projection_matrix * view_matrix * model_matrix * vec4(vertexPosition, 1);
 }
 ";
 
         public static string FragmentShader = @"
 #version 130
-in vec3 color;
+
+uniform sampler2D texture;
+
+in vec2 uv;
 out vec4 fragment;
 void main(void)
 {
-    fragment = vec4(color, 1);
+    fragment = texture2D(texture, uv);
 }
 ";
     }
